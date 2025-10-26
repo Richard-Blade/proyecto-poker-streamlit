@@ -1,0 +1,14 @@
+# Entorno virtual de Python
+.venv/
+venv/
+*.pyc
+
+# Caché de Python
+__pycache__/
+
+# Archivos de VS Code (opcional pero recomendado)
+.vscode/
+
+# Archivos de sistema (Mac y Windows)
+.DS_Store
+Thumbs.db
