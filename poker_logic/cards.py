@@ -57,7 +57,7 @@ class Card:
         elif self.suit == "♦":
             bg_color = "#0000FF"  # Azul para Diamantes
         elif self.suit == "♣":
-            bg_color = "#00FF00"  # Verde claro para Tréboles
+            bg_color = "#07C407"  # Verde claro para Tréboles
         
         # El estilo completo de la carta
         card_style = (

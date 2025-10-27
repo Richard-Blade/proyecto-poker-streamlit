@@ -2,14 +2,14 @@ import streamlit as st
 from poker_logic.cards import Deck
 from poker_logic.evaluator import evaluate_hand
 
-# --- Configuración de la Página (Tarea 1: Nuevo Icono) ---
+# --- Configuración de la Página ---
 st.set_page_config(
     page_title="Entrenador de Crupier de Poker",
-    page_icon="🃏", # Usamos el comodín para mejor estética
+    page_icon="♠", # Ícono corregido para mejor visualización en el navegador
     layout="wide"
 )
 
-st.title("Mi Entrenador de Poker 🃏")
+st.title("Mi Entrenador de Poker ♠")
 
 # --- Funciones de Lógica del Quiz ---
 
@@ -37,7 +37,6 @@ def find_winner(player_hands, board):
 
 
 # --- Estado de Sesión (Memoria de la App) ---
-# Inicializamos TODAS las variables de estado
 
 if 'hand_dealt' not in st.session_state:
     st.session_state.hand_dealt = False
@@ -45,32 +44,61 @@ if 'hand_dealt' not in st.session_state:
     st.session_state.player_hands = []
     st.session_state.winner_info = None
     st.session_state.quiz_answered = False
-    # Tarea 2: Inicializar las selecciones del usuario (Diccionario vacío)
     st.session_state.user_selections = {} 
+    
+    # Variables para el seguimiento de rendimiento
+    st.session_state.total_hands = 0
+    st.session_state.correct_predictions = 0
+    # NUEVO: Contador de racha positiva
+    st.session_state.consecutive_correct = 0
 
-# --- Barra Lateral (Configuración) ---
+# --- Barra Lateral (Configuración y Estadísticas) ---
 
 with st.sidebar:
     st.header("Configuración")
-    # Número de Jugadores (donde se define la cantidad)
     num_players = st.slider(
         "Número de Jugadores",
         min_value=2,
         max_value=9,
-        value=3  
+        value=5 
     )
     
     mode = st.radio(
         "Modo de Juego",
         ("Aleatorio (Quiz)", "Manual (Próximamente)")
     )
+    
+    st.markdown("---")
+    st.header("Estadísticas de Rendimiento")
+    
+    # Métrica de Racha Positiva
+    st.metric(label="Racha Positiva", value=f"{st.session_state.consecutive_correct} Manos")
+
+    st.markdown("---")
+    
+    # Mostramos las métricas de evaluación AHORA EN FILAS
+    if st.session_state.total_hands > 0:
+        accuracy = (st.session_state.correct_predictions / st.session_state.total_hands) * 100
+        
+        # Muestra en Filas (usando un formato más limpio sin st.columns)
+        st.metric(label="Manos Jugadas", value=st.session_state.total_hands)
+        st.metric(label="Respuestas Correctas", value=st.session_state.correct_predictions)
+        st.metric(label="Precisión", value=f"{accuracy:.1f}%")
+        
+        # Si la precisión es baja, podemos dar un mensaje de motivación
+        if accuracy < 70:
+            st.warning("¡Sigue practicando! Tu objetivo es alcanzar una precisión superior al 90%.")
+        elif accuracy >= 90:
+            st.success("¡Excelente precisión! Estás listo para repartir.")
+            
+    else:
+        st.info("Juega tu primera mano para ver las estadísticas de tu precisión.")
 
 # --- Lógica Principal de la App ---
 
 if mode == "Aleatorio (Quiz)":
     
     # Botón para repartir una nueva mano
-    # Al hacer clic, se resetea el estado del quiz
     if st.button("Repartir Siguiente Mano"):
         deck = Deck()
         st.session_state.board = deck.deal(5)
@@ -79,13 +107,11 @@ if mode == "Aleatorio (Quiz)":
         for _ in range(num_players):
             st.session_state.player_hands.append(deck.deal(2))
             
-        # Resetear el estado del quiz y las selecciones
+        # Resetear el estado
         st.session_state.hand_dealt = True
         st.session_state.quiz_answered = False
         st.session_state.winner_info = None
-        # Necesario resetear las selecciones para que no arrastre la respuesta anterior
         st.session_state.user_selections = {} 
-        # Forzamos una re-ejecución para limpiar la interfaz
         st.rerun() 
 
     # Si ya se repartió una mano, la mostramos
@@ -94,7 +120,6 @@ if mode == "Aleatorio (Quiz)":
         st.markdown(f"### Mesa: {board_str}", unsafe_allow_html=True) 
         st.markdown("---")
 
-        # Preparar columnas para el Quiz
         cols = st.columns(num_players)
         
         # Mostrar manos y checkboxes
@@ -104,11 +129,8 @@ if mode == "Aleatorio (Quiz)":
             
             with cols[i]:
                 st.subheader(player_name)
-                # Mostramos las cartas del jugador
                 st.markdown(hand_str, unsafe_allow_html=True)
                 
-                # CORRECCIÓN: Si el quiz NO ha sido respondido, mostramos el checkbox.
-                # Si SÍ fue respondido, no mostramos nada aquí (se verá en el Detalle).
                 is_selected = st.session_state.user_selections.get(i, False)
                 
                 if not st.session_state.quiz_answered:
@@ -118,30 +140,38 @@ if mode == "Aleatorio (Quiz)":
                         value=is_selected 
                     )
 
-        # --- Botón Evaluar y Lógica (Tarea 2) ---
+        # --- Botón Evaluar y Lógica ---
         
-        # El botón de Evaluación solo se muestra si el quiz NO ha sido respondido
         if not st.session_state.quiz_answered:
             col_eval = st.columns(num_players) 
             
             with col_eval[0]:
                 if st.button("Evaluar Ganadores", key="evaluate_button"):
                     
-                    # 1. Encontrar al ganador(es) real(es)
                     winner_indices, winner_hand_name, all_scores = find_winner(
                         st.session_state.player_hands, 
                         st.session_state.board
                     )
                     
-                    # 2. Obtener las selecciones del usuario (los índices marcados)
                     user_selections_indices = [
                         i for i, is_checked in st.session_state.user_selections.items() if is_checked
                     ]
 
-                    # 3. Comprobar la corrección: ¿Coinciden EXACTAMENTE las listas?
                     is_correct = sorted(user_selections_indices) == sorted(winner_indices)
 
-                    # 4. Guardar la información del resultado
+                    # --- Lógica de Racha y Contadores ---
+                    st.session_state.total_hands += 1 
+
+                    if is_correct:
+                        st.session_state.correct_predictions += 1
+                        st.session_state.consecutive_correct += 1 # Acierto: Incrementa racha
+                    else:
+                        st.session_state.consecutive_correct = 0 # Error: Resetea racha
+
+                    # --- Activación de Globos (Cada 10 aciertos en racha) ---
+                    if st.session_state.consecutive_correct > 0 and st.session_state.consecutive_correct % 10 == 0:
+                        st.balloons()
+                        
                     st.session_state.quiz_answered = True
                     st.session_state.winner_info = {
                         "winner_indices": winner_indices,
@@ -155,10 +185,11 @@ if mode == "Aleatorio (Quiz)":
         if st.session_state.quiz_answered and st.session_state.winner_info:
             info = st.session_state.winner_info
             
-            # Formato de la lista de ganadores (ej. "Jugadores 1 y 3")
+            # NOTA: La lógica de incremento/reset de contadores se movió arriba,
+            # ANTES del st.rerun, por lo que aquí solo mostramos el resultado.
+
             winner_names = [f"Jugador {i + 1}" for i in info['winner_indices']]
             
-            # Unimos los nombres para la cadena final (e.g., "Jugador 1 y 3" o "Jugador 2")
             if len(winner_names) > 1:
                  winner_str = f"{', '.join(winner_names[:-1])} y {winner_names[-1]}"
             else:
